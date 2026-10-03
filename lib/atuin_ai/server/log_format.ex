@@ -54,12 +54,12 @@ defmodule AtuinAI.Server.LogFormat do
     message = message(msg, meta)
     [JSON.encode!(document(format, level, message, meta, parse_engine_line(message))), ?\n]
   catch
-    kind, reason -> [JSON.encode!(fallback(format, level, kind, reason, msg)), ?\n]
+    kind, reason -> [JSON.encode!(fallback(format, level, kind, reason, msg, meta)), ?\n]
   end
 
   # Formatting raised or threw (e.g. a broken report_cb): still one JSON
   # object per line, carrying the failure and the raw message.
-  defp fallback(format, level, kind, reason, msg) do
+  defp fallback(format, level, kind, reason, msg, meta) do
     {time_key, level_key, error_key} =
       case format do
         :json -> {"time", "level", "error"}
@@ -67,12 +67,16 @@ defmodule AtuinAI.Server.LogFormat do
       end
 
     %{
-      time_key => DateTime.utc_now() |> DateTime.to_iso8601(),
+      time_key => timestamp(meta),
       level_key => to_string(level),
       "message" => inspect(msg),
       error_key => Exception.format_banner(kind, reason)
     }
-    |> then(&if(format == :ecs, do: Map.put(&1, "ecs.version", @ecs_version), else: &1))
+    |> then(fn doc ->
+      if format == :ecs,
+        do: Map.merge(doc, %{"ecs.version" => @ecs_version, "service.name" => "atuin-ai-server"}),
+        else: doc
+    end)
   end
 
   defp document(:json, level, message, meta, engine) do
@@ -122,7 +126,7 @@ defmodule AtuinAI.Server.LogFormat do
     if String.valid?(string), do: string, else: inspect(string)
   end
 
-  defp timestamp(%{time: time}),
+  defp timestamp(%{time: time}) when is_integer(time),
     do: time |> :calendar.system_time_to_rfc3339(unit: :microsecond, offset: ~c"Z") |> to_string()
 
   defp timestamp(_), do: DateTime.utc_now() |> DateTime.to_iso8601()

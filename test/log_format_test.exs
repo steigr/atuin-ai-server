@@ -92,11 +92,14 @@ defmodule AtuinAI.Server.LogFormatTest do
       broken = event({:report, %{a: 1}}, %{report_cb: fn _ -> throw(:boom) end})
 
       doc = render(broken, :ecs)
+      assert doc["@timestamp"] == "2026-10-03T21:37:55.305077Z"
+      assert doc["service.name"] == "atuin-ai-server"
       assert doc["log.level"] == "info"
       assert doc["error.message"] =~ "boom"
       assert doc["message"] =~ "report"
 
       doc = render(broken, :json)
+      assert doc["time"] == "2026-10-03T21:37:55.305077Z"
       assert doc["level"] == "info"
       assert doc["error"] =~ "boom"
     end
