@@ -102,6 +102,13 @@ defmodule AtuinAI.Server.LogFormatTest do
 
   test "engine line parsing" do
     assert LogFormat.parse_engine_line("[web] started") == {"web", "started", %{}}
+
+    assert LogFormat.parse_engine_line("[cli_chat] turn failed session_id=a detail=boom bang") ==
+             {"cli_chat", "turn_failed", %{"session_id" => "a", "detail" => "boom bang"}}
+
+    assert LogFormat.parse_engine_line("[cli_chat] turn failed") ==
+             {"cli_chat", "turn_failed", %{}}
+
     assert LogFormat.parse_engine_line("Starting LLM loop") == nil
   end
 end

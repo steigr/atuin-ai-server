@@ -123,13 +123,20 @@ defmodule AtuinAI.Server.LogFormat do
   @doc false
   # "[cli_chat] llm_call_failed session_id=a detail=connection refused duration_ms=1"
   # → {"cli_chat", "llm_call_failed", %{"session_id" => "a", "detail" => "connection refused", ...}}
+  # The event runs up to the first key=; a multi-word one ("[cli_chat] turn
+  # failed ...") is snake_cased to match the rest ("turn_failed").
   def parse_engine_line(message) do
-    case Regex.run(~r/\A\[([a-z0-9_]+)\] ([a-z0-9_]+)(?: (.*))?\z/s, message) do
-      [_, scope, event] -> {scope, event, %{}}
-      [_, scope, event, rest] -> {scope, event, fields(rest)}
+    case Regex.run(
+           ~r/\A\[([a-z0-9_]+)\] ([a-z0-9_]+(?: [a-z0-9_]+)*?)(?: ([a-z0-9_]+=.*))?\z/s,
+           message
+         ) do
+      [_, scope, event] -> {scope, event_name(event), %{}}
+      [_, scope, event, rest] -> {scope, event_name(event), fields(rest)}
       nil -> nil
     end
   end
+
+  defp event_name(words), do: String.replace(words, " ", "_")
 
   defp fields(rest) do
     rest
