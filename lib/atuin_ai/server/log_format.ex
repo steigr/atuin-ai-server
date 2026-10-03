@@ -53,8 +53,26 @@ defmodule AtuinAI.Server.LogFormat do
   def format(%{level: level, msg: msg, meta: meta}, %{format: format}) do
     message = message(msg, meta)
     [JSON.encode!(document(format, level, message, meta, parse_engine_line(message))), ?\n]
-  rescue
-    error -> [inspect({:log_format_error, error, msg}), ?\n]
+  catch
+    kind, reason -> [JSON.encode!(fallback(format, level, kind, reason, msg)), ?\n]
+  end
+
+  # Formatting raised or threw (e.g. a broken report_cb): still one JSON
+  # object per line, carrying the failure and the raw message.
+  defp fallback(format, level, kind, reason, msg) do
+    {time_key, level_key, error_key} =
+      case format do
+        :json -> {"time", "level", "error"}
+        :ecs -> {"@timestamp", "log.level", "error.message"}
+      end
+
+    %{
+      time_key => DateTime.utc_now() |> DateTime.to_iso8601(),
+      level_key => to_string(level),
+      "message" => inspect(msg),
+      error_key => Exception.format_banner(kind, reason)
+    }
+    |> then(&if(format == :ecs, do: Map.put(&1, "ecs.version", @ecs_version), else: &1))
   end
 
   defp document(:json, level, message, meta, engine) do
@@ -84,6 +102,12 @@ defmodule AtuinAI.Server.LogFormat do
       %{report_cb: callback} when is_function(callback, 1) ->
         {format, args} = callback.(report)
         message({format, args}, %{})
+
+      %{report_cb: callback} when is_function(callback, 2) ->
+        report
+        |> callback.(%{depth: :unlimited, chars_limit: :unlimited, single_line: false})
+        |> IO.chardata_to_string()
+        |> printable()
 
       _ ->
         inspect(report)

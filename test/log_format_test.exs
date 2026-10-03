@@ -83,6 +83,22 @@ defmodule AtuinAI.Server.LogFormatTest do
 
       report = event({:report, %{a: 1}}, %{report_cb: fn r -> {~c"report ~p", [r]} end})
       assert render(report, :ecs)["message"] == "report \#{a => 1}"
+
+      report = event({:report, %{a: 1}}, %{report_cb: fn r, _config -> ~c"two-arg #{r.a}" end})
+      assert render(report, :ecs)["message"] == "two-arg 1"
+    end
+
+    test "a failing report_cb still yields one JSON line" do
+      broken = event({:report, %{a: 1}}, %{report_cb: fn _ -> throw(:boom) end})
+
+      doc = render(broken, :ecs)
+      assert doc["log.level"] == "info"
+      assert doc["error.message"] =~ "boom"
+      assert doc["message"] =~ "report"
+
+      doc = render(broken, :json)
+      assert doc["level"] == "info"
+      assert doc["error"] =~ "boom"
     end
   end
 
