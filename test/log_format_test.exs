@@ -94,12 +94,16 @@ defmodule AtuinAI.Server.LogFormatTest do
       doc = render(broken, :ecs)
       assert doc["@timestamp"] == "2026-10-03T21:37:55.305077Z"
       assert doc["service.name"] == "atuin-ai-server"
+      assert doc["log.logger"] == "AtuinAI.Server.Router"
+      assert doc["log.origin.function"] == "do_match/4"
+      assert doc["log.origin.file.line"] == 19
       assert doc["log.level"] == "info"
       assert doc["error.message"] =~ "boom"
       assert doc["message"] =~ "report"
 
       doc = render(broken, :json)
       assert doc["time"] == "2026-10-03T21:37:55.305077Z"
+      assert doc["logger"] == "AtuinAI.Server.Router"
       assert doc["level"] == "info"
       assert doc["error"] =~ "boom"
     end
@@ -111,6 +115,7 @@ defmodule AtuinAI.Server.LogFormatTest do
         render(event({:string, "[cli_chat] turn_completed outcome=success llm_calls=1"}), :json)
 
       assert doc["time"] == "2026-10-03T21:37:55.305077Z"
+      assert doc["logger"] == "AtuinAI.Server.Router"
       assert doc["level"] == "info"
       assert doc["logger"] == "AtuinAI.Server.Router"
       assert doc["scope"] == "cli_chat"

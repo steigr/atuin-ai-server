@@ -58,25 +58,14 @@ defmodule AtuinAI.Server.LogFormat do
   end
 
   # Formatting raised or threw (e.g. a broken report_cb): still one JSON
-  # object per line, carrying the failure and the raw message.
+  # object per line, with every field that doesn't depend on the message,
+  # plus the failure and the raw message. Only the engine fields are lost.
   defp fallback(format, level, kind, reason, msg, meta) do
-    {time_key, level_key, error_key} =
-      case format do
-        :json -> {"time", "level", "error"}
-        :ecs -> {"@timestamp", "log.level", "error.message"}
-      end
+    error_key = if format == :ecs, do: "error.message", else: "error"
 
-    %{
-      time_key => timestamp(meta),
-      level_key => to_string(level),
-      "message" => inspect(msg),
-      error_key => Exception.format_banner(kind, reason)
-    }
-    |> then(fn doc ->
-      if format == :ecs,
-        do: Map.merge(doc, %{"ecs.version" => @ecs_version, "service.name" => "atuin-ai-server"}),
-        else: doc
-    end)
+    format
+    |> document(level, inspect(msg), meta, nil)
+    |> Map.put(error_key, Exception.format_banner(kind, reason))
   end
 
   defp document(:json, level, message, meta, engine) do
@@ -95,7 +84,7 @@ defmodule AtuinAI.Server.LogFormat do
     }
     |> put_if("log.logger", logger(meta))
     |> put_if("log.origin.function", function(meta))
-    |> put_if("log.origin.file.line", meta[:line])
+    |> put_if("log.origin.file.line", line(meta))
     |> put_engine(engine, "event.dataset", "event.action", "labels")
   end
 
@@ -134,8 +123,13 @@ defmodule AtuinAI.Server.LogFormat do
   defp logger(%{mfa: {module, _, _}}), do: inspect(module)
   defp logger(_), do: nil
 
-  defp function(%{mfa: {_, name, arity}}), do: "#{name}/#{arity}"
+  defp function(%{mfa: {_, name, arity}}) when is_atom(name) and is_integer(arity),
+    do: "#{name}/#{arity}"
+
   defp function(_), do: nil
+
+  defp line(%{line: line}) when is_integer(line), do: line
+  defp line(_), do: nil
 
   defp put_if(doc, _key, nil), do: doc
   defp put_if(doc, key, value), do: Map.put(doc, key, value)
